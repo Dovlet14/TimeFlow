@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Schedule Pro</string>
+    <string name="title_activity_main">Schedule Pro</string>
+    <string name="package_name">com.schedulepro.app</string>
+    <string name="custom_url_scheme">com.schedulepro.app</string>
+</resources>
