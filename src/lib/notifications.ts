@@ -28,27 +28,36 @@ export const requestNotificationPermission = async () => {
   try {
     console.log('Checking notification permissions...');
     
-    // Check Capacitor LocalNotifications permission
-    const status = await LocalNotifications.checkPermissions();
-    console.log('Current capacitor permission status:', status);
-    
-    if (status.display !== 'granted') {
-      console.log('Requesting capacitor notification permissions...');
-      const result = await LocalNotifications.requestPermissions();
-      console.log('Capacitor notification permission request result:', result);
+    const isPluginAvailable = Capacitor.isPluginAvailable('LocalNotifications');
+    if (!isPluginAvailable) {
+      console.warn('LocalNotifications plugin is not available on this platform/browser.');
+    } else {
+      // Check Capacitor LocalNotifications permission
+      const status = await LocalNotifications.checkPermissions();
+      console.log('Current capacitor permission status:', status);
+      
+      if (status.display !== 'granted') {
+        console.log('Requesting capacitor notification permissions...');
+        const result = await LocalNotifications.requestPermissions();
+        console.log('Capacitor notification permission request result:', result);
+      }
     }
 
     // Also request browser Notification permission if on web
     if (Capacitor.getPlatform() === 'web' && 'Notification' in window) {
-      if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
-        console.log('Requesting browser notification permissions...');
-        const browserResult = await Notification.requestPermission();
-        console.log('Browser notification permission result:', browserResult);
+      try {
+        if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+          console.log('Requesting browser notification permissions...');
+          const browserResult = await Notification.requestPermission();
+          console.log('Browser notification permission result:', browserResult);
+        }
+      } catch (err) {
+        console.warn('Browser Notification API request failed (might be in an iframe):', err);
       }
     }
     
     // Create a high-priority channel for Android
-    if (Capacitor.getPlatform() === 'android') {
+    if (Capacitor.getPlatform() === 'android' && isPluginAvailable) {
       try {
         await LocalNotifications.createChannel({
           id: 'task-reminders',
@@ -66,10 +75,21 @@ export const requestNotificationPermission = async () => {
     }
     
     // Re-check status to return a definitive boolean
-    const finalStatus = await LocalNotifications.checkPermissions();
-    return finalStatus.display === 'granted' || (Capacitor.getPlatform() === 'web' && 'Notification' in window && Notification.permission === 'granted');
+    let capacitorGranted = false;
+    if (isPluginAvailable) {
+      const finalStatus = await LocalNotifications.checkPermissions();
+      capacitorGranted = finalStatus.display === 'granted';
+    }
+    
+    const browserGranted = (Capacitor.getPlatform() === 'web' && 'Notification' in window && Notification.permission === 'granted');
+    
+    return capacitorGranted || browserGranted;
   } catch (e) {
-    console.error('Error checking/requesting notification permissions', e);
+    if (e instanceof Error && e.message.includes('not supported')) {
+       console.warn('Plugin reported not supported:', e.message);
+    } else {
+       console.error('Error checking/requesting notification permissions', e);
+    }
     return false;
   }
 };
@@ -86,24 +106,27 @@ export const testNotification = async () => {
   }
 
   try {
-    console.log('Attempting to send immediate notification for test...');
-    
-    // Schedule for 2 seconds later
-    const testTime = new Date(Date.now() + 2000);
-    
-    await LocalNotifications.schedule({
-      notifications: [
-        {
-          title: "Проверка уведомлений",
-          body: "Если вы видите это, значит уведомления работают через Capacitor!",
-          id: 999999,
-          schedule: { at: testTime, allowWhileIdle: true },
-          channelId: 'task-reminders',
-          smallIcon: 'res://drawable/push_icon', // Optional: try to use app icon
-        }
-      ]
-    });
-    console.log('Capacitor test notification scheduled');
+    const isPluginAvailable = Capacitor.isPluginAvailable('LocalNotifications');
+    if (isPluginAvailable) {
+      console.log('Attempting to send immediate notification for test...');
+      
+      // Schedule for 2 seconds later
+      const testTime = new Date(Date.now() + 2000);
+      
+      await LocalNotifications.schedule({
+        notifications: [
+          {
+            title: "Проверка уведомлений",
+            body: "Если вы видите это, значит уведомления работают через Capacitor!",
+            id: 999999,
+            schedule: { at: testTime, allowWhileIdle: true },
+            channelId: 'task-reminders',
+            smallIcon: 'res://drawable/push_icon', // Optional: try to use app icon
+          }
+        ]
+      });
+      console.log('Capacitor test notification scheduled');
+    }
 
     // Fallback/redundancy for web
     if (Capacitor.getPlatform() === 'web' && 'Notification' in window && Notification.permission === 'granted') {
@@ -119,6 +142,12 @@ export const testNotification = async () => {
 };
 
 export const scheduleTaskNotifications = async (tasks: ScheduleTask[]) => {
+  const isPluginAvailable = Capacitor.isPluginAvailable('LocalNotifications');
+  if (!isPluginAvailable) {
+    console.log('Skipping scheduling: LocalNotifications plugin not available');
+    return;
+  }
+
   // Ensure permission and channel exist
   await requestNotificationPermission();
 
