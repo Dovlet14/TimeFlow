@@ -19,7 +19,7 @@ import { PieChart as RePieChart, Pie, Cell, ResponsiveContainer, Tooltip as ReTo
 import { GoogleGenAI } from "@google/genai";
 import confetti from 'canvas-confetti';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
-import { requestNotificationPermission, scheduleTaskNotifications } from './lib/notifications';
+import { requestNotificationPermission, scheduleTaskNotifications, testNotification } from './lib/notifications';
 
 const getGenAI = () => {
   const key = process.env.GEMINI_API_KEY;
@@ -1496,15 +1496,21 @@ export default function App() {
                              onClick={() => playNotificationSound('default')}
                              className="flex-1 py-2 bg-zinc-100 dark:bg-zinc-700 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-zinc-200 dark:hover:bg-zinc-600 transition-all"
                            >
-                              Тест (Default)
+                              Звук (Default)
                            </button>
                            <button 
                              onClick={() => playNotificationSound('calm')}
                              className="flex-1 py-2 bg-zinc-100 dark:bg-zinc-700 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-zinc-200 dark:hover:bg-zinc-600 transition-all"
                            >
-                              Тест (Calm)
+                              Звук (Calm)
                            </button>
                         </div>
+                        <button 
+                          onClick={() => testNotification()}
+                          className="w-full py-3 bg-indigo-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 dark:shadow-none"
+                        >
+                           Проверить уведомления (через 5 сек)
+                        </button>
                       </div>
                     )}
                   </div>
