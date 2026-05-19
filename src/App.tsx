@@ -227,8 +227,12 @@ export default function App() {
     }
 
     // Request Notification permission (Browser + Capacitor)
-    if ("Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission();
+    try {
+      if ("Notification" in window && Notification.permission === "default") {
+        Notification.requestPermission().catch(e => console.warn('Browser permission request failed:', e));
+      }
+    } catch (e) {
+      console.warn('Notification API not accessible:', e);
     }
     requestNotificationPermission();
   }, []);
