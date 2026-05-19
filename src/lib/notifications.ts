@@ -24,7 +24,7 @@ function getDuration(start: string, end: string) {
 }
 
 export const requestNotificationPermission = async () => {
-  const isWeb = Capacitor.getPlatform() === 'web';
+  if (Capacitor.getPlatform() === 'web') return;
   
   const status = await LocalNotifications.checkPermissions();
   if (status.display !== 'granted') {
@@ -50,6 +50,8 @@ export const requestNotificationPermission = async () => {
 };
 
 export const scheduleTaskNotifications = async (tasks: ScheduleTask[]) => {
+  if (Capacitor.getPlatform() === 'web') return;
+
   // Ensure permission and channel exist
   await requestNotificationPermission();
 
