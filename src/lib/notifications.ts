@@ -8,7 +8,8 @@ function stringToId(str: string): number {
     hash = ((hash << 5) - hash) + str.charCodeAt(i);
     hash |= 0;
   }
-  return Math.abs(hash);
+  // Keep ID within safe 32-bit positive integer range (max 2^31 - 1)
+  return Math.abs(hash) % 2000000000;
 }
 
 function getDuration(start: string, end: string) {
@@ -24,40 +25,107 @@ function getDuration(start: string, end: string) {
 }
 
 export const requestNotificationPermission = async () => {
-  if (Capacitor.getPlatform() === 'web') return;
-  
-  const status = await LocalNotifications.checkPermissions();
-  if (status.display !== 'granted') {
-    await LocalNotifications.requestPermissions();
-  }
-  
-  // Create a high-priority channel for Android
-  if (Capacitor.getPlatform() === 'android') {
-    try {
-      await LocalNotifications.createChannel({
-        id: 'task-reminders',
-        name: 'Task Reminders',
-        description: 'Notifications for task starts, ends and reminders',
-        importance: 5, // High importance
-        visibility: 1, // Public (show on lock screen)
-        sound: 'default',
-        vibration: true,
-      });
-    } catch (e) {
-      console.error('Error creating notification channel', e);
+  try {
+    console.log('Checking notification permissions...');
+    
+    // Check Capacitor LocalNotifications permission
+    const status = await LocalNotifications.checkPermissions();
+    console.log('Current capacitor permission status:', status);
+    
+    if (status.display !== 'granted') {
+      console.log('Requesting capacitor notification permissions...');
+      const result = await LocalNotifications.requestPermissions();
+      console.log('Capacitor notification permission request result:', result);
     }
+
+    // Also request browser Notification permission if on web
+    if (Capacitor.getPlatform() === 'web' && 'Notification' in window) {
+      if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+        console.log('Requesting browser notification permissions...');
+        const browserResult = await Notification.requestPermission();
+        console.log('Browser notification permission result:', browserResult);
+      }
+    }
+    
+    // Create a high-priority channel for Android
+    if (Capacitor.getPlatform() === 'android') {
+      try {
+        await LocalNotifications.createChannel({
+          id: 'task-reminders',
+          name: 'Task Reminders',
+          description: 'Notifications for task starts, ends and reminders',
+          importance: 5, // High importance
+          visibility: 1, // Public (show on lock screen)
+          sound: 'default',
+          vibration: true,
+        });
+        console.log('Notification channel created/ensured');
+      } catch (e) {
+        console.error('Error creating notification channel', e);
+      }
+    }
+    
+    // Re-check status to return a definitive boolean
+    const finalStatus = await LocalNotifications.checkPermissions();
+    return finalStatus.display === 'granted' || (Capacitor.getPlatform() === 'web' && 'Notification' in window && Notification.permission === 'granted');
+  } catch (e) {
+    console.error('Error checking/requesting notification permissions', e);
+    return false;
+  }
+};
+
+export const testNotification = async () => {
+  const hasPermission = await requestNotificationPermission();
+  if (!hasPermission) {
+    console.error('Cant send test notification: No permission');
+    // Try browser alert as a last resort to show something works
+    if (Capacitor.getPlatform() === 'web') {
+      alert('Уведомления заблокированы браузером. Пожалуйста, разрешите их в настройках сайта.');
+    }
+    return;
+  }
+
+  try {
+    console.log('Attempting to send immediate notification for test...');
+    
+    // Schedule for 2 seconds later
+    const testTime = new Date(Date.now() + 2000);
+    
+    await LocalNotifications.schedule({
+      notifications: [
+        {
+          title: "Проверка уведомлений",
+          body: "Если вы видите это, значит уведомления работают через Capacitor!",
+          id: 999999,
+          schedule: { at: testTime, allowWhileIdle: true },
+          channelId: 'task-reminders',
+          smallIcon: 'res://drawable/push_icon', // Optional: try to use app icon
+        }
+      ]
+    });
+    console.log('Capacitor test notification scheduled');
+
+    // Fallback/redundancy for web
+    if (Capacitor.getPlatform() === 'web' && 'Notification' in window && Notification.permission === 'granted') {
+      setTimeout(() => {
+        new Notification("Проверка (Браузер)", {
+          body: "Уведомления браузера тоже работают!",
+        });
+      }, 2000);
+    }
+  } catch (e) {
+    console.error('Error scheduling test notification', e);
   }
 };
 
 export const scheduleTaskNotifications = async (tasks: ScheduleTask[]) => {
-  if (Capacitor.getPlatform() === 'web') return;
-
   // Ensure permission and channel exist
   await requestNotificationPermission();
 
   // First cancel all existing notifications
   try {
     const pending = await LocalNotifications.getPending();
+    console.log('Pending notifications before scheduling:', pending.notifications.length);
     if (pending.notifications.length > 0) {
       await LocalNotifications.cancel({ notifications: pending.notifications });
     }
@@ -155,8 +223,11 @@ export const scheduleTaskNotifications = async (tasks: ScheduleTask[]) => {
       for (const chunk of chunks) {
         await LocalNotifications.schedule({ notifications: chunk });
       }
+      console.log(`Successfully scheduled ${notificationsToSchedule.length} notifications`);
     } catch (e) {
       console.error('Error scheduling notifications', e);
     }
+  } else {
+    console.log('No notifications to schedule');
   }
 };
